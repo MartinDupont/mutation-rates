@@ -1,0 +1,1 @@
+datasets download genome taxon "Escherichia coli" --include genome,cds,gtf,gff3 --annotated --assembly-level complete --assembly-source RefSeq
