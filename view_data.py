@@ -3,71 +3,7 @@ import pandas as pd
 import pdb
 import re
 from typing import List, Optional
-
-COLUMNS_OF_INTEREST = ['gene', 'locus_tag', 'protein', 'protein_id']
-
-ERROR_COLUMNS = [
-    'pseudo',
-    'partial',
-    'exception',
-    'transl_except',
-]
-
-def iterate_fasta(file_handle):
-    lines = file_handle.readlines()
-    if not lines[0].startswith(">"):
-        raise RuntimeError("Fasta file not formatted correctly. Doesn't start with >")
-
-    sequence = None
-    descriptions = []
-    sequences = []
-    for line in lines:
-        if not line.startswith(">"):
-            sequence += line.strip()
-        else:
-            if sequence is not None:
-                sequences.append(sequence)
-            sequence = ""
-            descriptions.append(line)
-
-    sequences.append(sequence)
-
-    return descriptions, sequences
-
-
-
-def parse_fasta_file(file_handle, sample_name, include_sequences=False) -> List[dict]:
-    records = []
-
-    descriptions, sequence = iterate_fasta(file_handle)
-    for description in descriptions:
-
-        #regex = r'\[(.*?)\]'
-        regex = r'\[([^][]*(?:\[[^][]*\])*[^][]*)\]'
-        matches = re.findall(regex, description)
-        record_data = {}
-
-        for match in matches:
-            if '=' in match:
-                key, value = match.split('=', 1)
-                key = key.strip()
-                value = value.strip()
-                record_data[key] = value
-
-        if any(key in ERROR_COLUMNS for key in record_data.keys()):
-            continue
-
-        record_data['sample'] = sample_name
-        if include_sequences:
-            record_data['sequence'] = sequence
-
-        record_data = {k: v for k,v in record_data.items() if k in COLUMNS_OF_INTEREST}
-
-        records.append(record_data)
-
-    return records
-
-
+from common import parse_fasta_file
 
 def read_fasta_files(base_directory, lim: Optional[int]=100):
     all_sequences = []
