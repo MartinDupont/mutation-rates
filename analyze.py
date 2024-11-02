@@ -6,6 +6,9 @@ from typing import List, Optional
 from common import parse_fasta_file
 from Levenshtein import distance
 from collections import defaultdict
+from scipy.stats import poisson
+import numpy as np
+import matplotlib.pyplot as plt
 
 IDENTIFIER = 'protein'
 
@@ -95,16 +98,14 @@ def find_matches(records, reference_genome, mutations, anomalies, sample_counts,
             # Invalid gene sequence
             continue
 
-        # We grab these in every case.
+        # We grab the mutation count in every case.
         # This ensures that every valid comparison made fills the defaultdict with a 0.
         # We also need to track genes with no mutations to get accurate counts
-        mutation_count = mutations[key]
-        sample_count = sample_counts[key]
+        sample_counts[key] += 1
 
         if sample_protein != reference_protein:
             difference = distance(sample_protein, reference_protein)
-            mutation_count += difference
-            sample_count += 1
+            mutations[key] += difference
 
             if difference > len(reference_protein) * anomaly_threshold:
                 anomalies[key] += 1
@@ -151,13 +152,56 @@ def get_diffs(base_directory, reference_genome, limit =100000):
     return df
 
 
-if __name__ == '__main__':
-    base_directory = '/Users/martin/Documents/data/ncbi_new/ncbi_dataset/ncbi_dataset/data'
-    reference_dir = '/Users/martin/Documents/data/reference_genome/ncbi_dataset/data/GCA_000005845.2/cds_from_genomic.fna'
+def calculate_mutation_rates(df):
+    df = df[df['n_anomalies'] < 1].copy()
 
-    reference_genome = read_and_parse_reference_genome(reference_dir)
-    df = get_diffs(base_directory, reference_genome)
+    # In the math explainer we showed that we can just count the total mutations over the total length
+    df['total_len'] = df['sample_count'] * df['ref_length']
+
+    total_mutation_rate = df['n_mutations'].sum() / df['total_len'].sum()
+
+    df['expected_mutations'] = df['total_len'] * total_mutation_rate
+
+    df['p_value'] = df.apply(lambda x: poisson.cdf(x['n_mutations'], x['total_len'] * total_mutation_rate), axis=1)
+
+    df['neg_log_p'] = - np.log10(df['p_value'])
+
+    return df
+
+
+def make_qq_plot(df):
+    y = df['neg_log_p'].sort_values()
+
+    x = np.log10(np.arange(len(y)) + 1)
+
+    plt.scatter(x, y)
+    plt.xlabel('-log ( expected pvals )')
+    plt.ylabel('-log ( actual pvals )')
+
+    plt.show()
+    plt.savefig('qq_plot')
+
+
+
+if __name__ == '__main__':
+    # base_directory = '/Users/martin/Documents/data/ncbi_new/ncbi_dataset/ncbi_dataset/data'
+    # reference_dir = '/Users/martin/Documents/data/reference_genome/ncbi_dataset/data/GCA_000005845.2/cds_from_genomic.fna'
+    #
+    # reference_genome = read_and_parse_reference_genome(reference_dir)
+    # df = get_diffs(base_directory, reference_genome)
+    # import pickle
+    # pickle.dump(df, open('df', 'wb'))
+
+    import pickle
+    df = pickle.load(open('df', 'rb'))
+
     print("--------------------------")
     print(len(df[df['n_anomalies'] == 0]))
     print(len(df[df['n_anomalies'] < 10]))
     print(df.sort_values('n_anomalies'))
+
+    df = calculate_mutation_rates(df)
+
+    print(df.sort_values('p_value'))
+
+    make_qq_plot(df)
