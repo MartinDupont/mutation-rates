@@ -10,6 +10,26 @@ from collections import defaultdict
 IDENTIFIER = 'protein'
 
 
+TRANSLATION_TABLE = {
+    'ATA':'I', 'ATC':'I', 'ATT':'I', 'ATG':'M',
+    'ACA':'T', 'ACC':'T', 'ACG':'T', 'ACT':'T',
+    'AAC':'N', 'AAT':'N', 'AAA':'K', 'AAG':'K',
+    'AGC':'S', 'AGT':'S', 'AGA':'R', 'AGG':'R',
+    'CTA':'L', 'CTC':'L', 'CTG':'L', 'CTT':'L',
+    'CCA':'P', 'CCC':'P', 'CCG':'P', 'CCT':'P',
+    'CAC':'H', 'CAT':'H', 'CAA':'Q', 'CAG':'Q',
+    'CGA':'R', 'CGC':'R', 'CGG':'R', 'CGT':'R',
+    'GTA':'V', 'GTC':'V', 'GTG':'V', 'GTT':'V',
+    'GCA':'A', 'GCC':'A', 'GCG':'A', 'GCT':'A',
+    'GAC':'D', 'GAT':'D', 'GAA':'E', 'GAG':'E',
+    'GGA':'G', 'GGC':'G', 'GGG':'G', 'GGT':'G',
+    'TCA':'S', 'TCC':'S', 'TCG':'S', 'TCT':'S',
+    'TTC':'F', 'TTT':'F', 'TTA':'L', 'TTG':'L',
+    'TAC':'Y', 'TAT':'Y', 'TAA':'_', 'TAG':'_',
+    'TGC':'C', 'TGT':'C', 'TGA':'_', 'TGG':'W',
+}
+
+
 def first_diff(string_a, string_b):
     count = 0
     for a, b in zip(string_a, string_b):
@@ -45,30 +65,54 @@ def read_and_parse_reference_genome(file_path):
     return sequence_map
 
 
-def find_matches(records, reference_genome, mutations, anomalies, counts, anomaly_threshold=0.01):
+def translate(seq):
+    protein =""
+    if len(seq) % 3 != 0:
+        raise ValueError("Sequence not right")
+
+    for i in range(0, len(seq), 3):
+        codon = seq[i:i + 3]
+        protein+= TRANSLATION_TABLE[codon]
+    return protein
+
+
+
+def find_matches(records, reference_genome, mutations, anomalies, sample_counts, anomaly_threshold=0.1):
     for r in records:
         key = make_key(r)
-        sequence = r.get('sequence')
-        if not key or not sequence:
+        sample_sequence = r.get('sequence')
+        if not key or not sample_sequence:
             continue
 
         reference_sequence = reference_genome.get(key)
         if not reference_sequence:
             continue
 
-        if sequence != reference_sequence:
-            difference = distance(sequence, reference_sequence)
-            mutations[key] += difference
-            counts[key] += 1
+        reference_protein = translate(reference_sequence)
+        try:
+            sample_protein = translate(sample_sequence)
+        except KeyError as e:
+            # Invalid gene sequence
+            continue
 
+        # We grab these in every case.
+        # This ensures that every valid comparison made fills the defaultdict with a 0.
+        # We also need to track genes with no mutations to get accurate counts
+        mutation_count = mutations[key]
+        sample_count = sample_counts[key]
 
-            if difference > len(reference_sequence) * anomaly_threshold:
+        if sample_protein != reference_protein:
+            difference = distance(sample_protein, reference_protein)
+            mutation_count += difference
+            sample_count += 1
+
+            if difference > len(reference_protein) * anomaly_threshold:
                 anomalies[key] += 1
 
 
 
 
-def get_diffs(base_directory, reference_genome, limit =100):
+def get_diffs(base_directory, reference_genome, limit =100000):
 
     count = 0
     mutations = defaultdict(int)
