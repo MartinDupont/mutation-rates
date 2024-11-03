@@ -79,7 +79,7 @@ def translate(seq):
     return protein
 
 
-def find_matches(records, reference_genome, mutations, anomalies, sample_counts, anomaly_threshold=0.1):
+def find_matches(records, reference_genome, mutations, anomalies, sample_counts, unique_sequences, sequence_counts, anomaly_threshold=0.1):
     for r in records:
         key = make_key(r)
         sample_sequence = r.get('sequence')
@@ -100,6 +100,8 @@ def find_matches(records, reference_genome, mutations, anomalies, sample_counts,
         # We count the samples in every case
         # Because we also need to track genes with no mutations to get accurate counts
         sample_counts[key] += 1
+        unique_sequences[key].add(sample_protein)
+        sequence_counts[sample_protein] += 1
 
         if sample_protein != reference_protein:
             difference = distance(sample_protein, reference_protein)
@@ -109,6 +111,41 @@ def find_matches(records, reference_genome, mutations, anomalies, sample_counts,
                 anomalies[key] += 1
 
 
+def count_mutations_maf(sample_counts, unique_sequences, sequence_counts):
+    """
+    The reference genome isn't necessarily the one with the major allele frequency.
+    So, we store all the unique sequences encountered and how many times each sequence has been encountered.
+    We take the most common sequence and calculate the number of mutations by summing the edit distance
+    between all encountered sequences and the most common one, weighted by  occurrence.
+
+    This is equivalent to summing mutations on a per-allele basis if the most common sequence is >50%
+    Empirically, this is true > 90% of the time. Good enough for now.
+
+    :param sample_counts:
+    :param unique_sequences:
+    :param sequence_counts:
+    :return:
+    """
+
+    mutations_maf = {}
+    mafs = {}
+    for key, value in sample_counts.items():
+        sequences = unique_sequences[key]
+        biggest_count = 0
+        most_common_sequence = None
+        for s in sequences:
+            if sequence_counts[s] > biggest_count:
+                biggest_count = sequence_counts[s]
+                most_common_sequence = s
+
+        n_mutations = sum(distance(most_common_sequence, s) * sequence_counts[s] for s in sequences)
+        mutations_maf[key] = n_mutations
+
+        mafs[key] = sequence_counts[most_common_sequence] /  sum(sequence_counts[s] for s in sequences)
+
+
+    return mutations_maf, mafs
+
 
 
 def get_diffs(base_directory, reference_genome, limit =100000):
@@ -117,6 +154,8 @@ def get_diffs(base_directory, reference_genome, limit =100000):
     mutations = defaultdict(int)
     anomalies = defaultdict(int)
     sample_counts = defaultdict(int)
+    unique_sequences = defaultdict(set)
+    sequence_counts = defaultdict(int)
     for folder_name in os.listdir(base_directory):
         if count > limit:
             break
@@ -127,23 +166,31 @@ def get_diffs(base_directory, reference_genome, limit =100000):
                 #print(f'reading CDS from {folder_path}')
                 with open(file_path, 'r') as file:
                     parsed = parse_fasta_file(file, folder_name, include_sequences=True)
-                    find_matches(parsed, reference_genome, mutations, anomalies, sample_counts)
+                    find_matches(parsed, reference_genome, mutations, anomalies, sample_counts, unique_sequences,sequence_counts)
                     count += 1
+
+
+    mutations_maf, mafs = count_mutations_maf(sample_counts, unique_sequences, sequence_counts)
 
     proteins = [k for k in sample_counts.keys()]
     counts = [sample_counts[k] for k in sample_counts.keys()]
-    n_mutations = [mutations[k] for k in sample_counts.keys()]
+    n_mutations_old = [mutations[k] for k in sample_counts.keys()]
+    n_mutations = [mutations_maf[k] for k in sample_counts.keys()]
     ref_lengths = [len(reference_genome[k]) for k in sample_counts.keys()]
     n_anomalies = [anomalies[k] for k in sample_counts.keys()]
-    sequences = [reference_genome[k] for k in sample_counts.keys()]
+    n_sequences = [len(unique_sequences[k]) for k in sample_counts.keys()]
+    #sequences = [reference_genome[k] for k in sample_counts.keys()]
+    major_alle_freqs = [mafs[k] for k in sample_counts.keys()]
 
     df = pd.DataFrame({
         "identifier": proteins,
         "sample_count": counts,
         "n_mutations": n_mutations,
+        "n_mutations_old": n_mutations_old,
         "ref_length": ref_lengths,
         "n_anomalies": n_anomalies,
-        "sequence": sequences,
+        "n_sequences": n_sequences,
+        "major_allele_freq": major_alle_freqs,
     })
 
 

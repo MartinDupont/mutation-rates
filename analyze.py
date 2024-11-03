@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 def calculate_mutation_rates(df):
     df = df[df['n_anomalies'] < 1].copy()
 
+    df = df.drop(columns = ['n_anomalies'])
+
     # In the math explainer we showed that we can just count the total mutations over the total length
     df['total_len'] = df['sample_count'] * df['ref_length']
 
@@ -19,6 +21,8 @@ def calculate_mutation_rates(df):
     df['p_value'] = df.apply(lambda x: poisson.cdf(x['n_mutations'], x['total_len'] * total_mutation_rate), axis=1)
 
     df['neg_log_p'] = - np.log10(df['p_value'])
+
+    df['unique_ratio'] = df['n_sequences'] / df['sample_count']
 
     return df
 
