@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 
 def calculate_mutation_rates(df):
     df = df[df['n_anomalies'] < 1].copy()
+    #df = df[df['major_allele_freq'] > 0.5].copy()
 
     df = df.drop(columns = ['n_anomalies'])
 
