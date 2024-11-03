@@ -98,9 +98,8 @@ def find_matches(records, reference_genome, mutations, anomalies, sample_counts,
             # Invalid gene sequence
             continue
 
-        # We grab the mutation count in every case.
-        # This ensures that every valid comparison made fills the defaultdict with a 0.
-        # We also need to track genes with no mutations to get accurate counts
+        # We count the samples in every case
+        # Because we also need to track genes with no mutations to get accurate counts
         sample_counts[key] += 1
 
         if sample_protein != reference_protein:
@@ -132,12 +131,12 @@ def get_diffs(base_directory, reference_genome, limit =100000):
                     find_matches(parsed, reference_genome, mutations, anomalies, sample_counts)
                     count += 1
 
-    proteins = [k for k in mutations.keys()]
-    counts = [sample_counts[k] for k in mutations.keys()]
-    n_mutations = [mutations[k] for k in mutations.keys()]
-    ref_lengths = [len(reference_genome[k]) for k in mutations.keys()]
-    n_anomalies = [anomalies[k] for k in mutations.keys()]
-    sequences = [reference_genome[k] for k in mutations.keys()]
+    proteins = [k for k in sample_counts.keys()]
+    counts = [sample_counts[k] for k in sample_counts.keys()]
+    n_mutations = [mutations[k] for k in sample_counts.keys()]
+    ref_lengths = [len(reference_genome[k]) for k in sample_counts.keys()]
+    n_anomalies = [anomalies[k] for k in sample_counts.keys()]
+    sequences = [reference_genome[k] for k in sample_counts.keys()]
 
     df = pd.DataFrame({
         "identifier": proteins,
@@ -158,6 +157,8 @@ def calculate_mutation_rates(df):
     # In the math explainer we showed that we can just count the total mutations over the total length
     df['total_len'] = df['sample_count'] * df['ref_length']
 
+    df['mutation_rate'] = df['n_mutations'] / df['total_len']
+
     total_mutation_rate = df['n_mutations'].sum() / df['total_len'].sum()
 
     df['expected_mutations'] = df['total_len'] * total_mutation_rate
@@ -169,7 +170,7 @@ def calculate_mutation_rates(df):
     return df
 
 
-def make_qq_plot(df):
+def make_summary_plots(df):
     y = df['neg_log_p'].sort_values()
 
     x = np.log10(np.arange(len(y)) + 1)
@@ -180,10 +181,29 @@ def make_qq_plot(df):
 
     plt.show()
     plt.savefig('qq_plot')
+    plt.close()
+
+
+    data = df['p_value']
+    plt.hist(data, 100, alpha=0.5, color="black")
+    plt.xlabel('p-value')
+    plt.ylabel('count')
+    plt.show()
+    plt.close()
+
+
+    data = df[df['p_value'] == 0]['mutation_rate']
+    plt.hist(data, 100, alpha=0.5, color="black")
+    plt.xlabel('Mutations per base pair')
+    plt.show()
+    plt.close()
+
+
 
 
 
 if __name__ == '__main__':
+    # plt.ioff()
     # base_directory = '/Users/martin/Documents/data/ncbi_new/ncbi_dataset/ncbi_dataset/data'
     # reference_dir = '/Users/martin/Documents/data/reference_genome/ncbi_dataset/data/GCA_000005845.2/cds_from_genomic.fna'
     #
@@ -202,6 +222,12 @@ if __name__ == '__main__':
 
     df = calculate_mutation_rates(df)
 
-    print(df.sort_values('p_value'))
+    #print("-----------------------------")
+    zeros = df['p_value'] == 0
+    ones = df['p_value'] == 1
+    df_significant = df[zeros | ones]
+    #pdb.set_trace()
+    #print(df_significant.sort_values('mutation_rate').iloc[-40:])
 
-    make_qq_plot(df)
+
+    make_summary_plots(df)
