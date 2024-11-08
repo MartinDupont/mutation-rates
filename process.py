@@ -77,7 +77,7 @@ def translate(seq):
     return protein
 
 
-def find_matches(records, sample_counts, unique_sequences, sequence_counts):
+def find_matches(records, sample_counts, unique_sequences, sequence_counts, reference_genome):
     for r in records:
         key = make_key(r)
         sample_sequence = r.get('sequence')
@@ -159,7 +159,7 @@ def get_diffs(base_directory, reference_genome, limit =100000):
                 #print(f'reading CDS from {folder_path}')
                 with open(file_path, 'r') as file:
                     parsed = parse_fasta_file(file, folder_name, include_sequences=True)
-                    find_matches(parsed, sample_counts, unique_sequences, sequence_counts)
+                    find_matches(parsed, sample_counts, unique_sequences, sequence_counts, reference_genome)
                     count += 1
 
 
