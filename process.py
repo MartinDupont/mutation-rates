@@ -9,7 +9,8 @@ from collections import defaultdict
 from scipy.stats import poisson
 import numpy as np
 import matplotlib.pyplot as plt
-
+from Bio import Phylo
+from Bio.Phylo.TreeConstruction import DistanceMatrix, DistanceTreeConstructor
 
 TRANSLATION_TABLE = {
     'ATA':'I', 'ATC':'I', 'ATT':'I', 'ATG':'M',
@@ -69,7 +70,7 @@ def read_and_parse_reference_genome(file_path):
 def translate(seq):
     protein =""
     if len(seq) % 3 != 0:
-        raise ValueError("Sequence not right")
+        raise ValueError("DNA sequence has length that is not a multiple of 3")
 
     for i in range(0, len(seq), 3):
         codon = seq[i:i + 3]
@@ -99,6 +100,121 @@ def find_matches(records, sample_counts, unique_sequences, sequence_counts, refe
         sample_counts[key] += 1
         unique_sequences[key].add(sample_protein)
         sequence_counts[sample_protein] += 1
+
+
+
+def prepare_distance_data(records, sample_ids, sequence_store, current_id):
+    for r in records:
+        key = make_key(r)
+        sample_sequence = r.get('sequence')
+        if not key or not sample_sequence:
+            continue
+
+        try:
+            sample_protein = translate(sample_sequence)
+        except KeyError as e:
+            # Invalid gene sequence
+            continue
+        except ValueError as e:
+            continue
+
+        id = sequence_store.get(sample_protein)
+        if id is None:
+            sequence_store[sample_protein] = current_id
+            sample_ids[r['sample']].update({key: current_id})
+            current_id += 1
+        else:
+            sample_ids[r['sample']].update({key: id})
+
+
+
+
+def extract_lower_triangular(matrix):
+    n = matrix.shape[0]
+    lower_triangular = []
+
+    for i in range(n):
+        row = []
+        for j in range(i + 1):
+            row.append(matrix[i, j])
+        lower_triangular.append(row)
+
+    return lower_triangular
+
+
+def calculate_distance_matrix(sample_ids, sequence_store):
+
+    reversed_sequence_store = {v:k for k, v in sequence_store.items()}
+
+    dist_matrix = np.zeros((len(sample_ids), len(sample_ids)))
+    i = 0
+    for s1, ids_1 in sample_ids.items():
+        j = 0
+        for s2, ids_2 in sample_ids.items():
+            differences = []
+            lengths = []
+            for key, seq_id_1 in ids_1.items():
+                seq_id_2 = ids_2.get(key)
+                if seq_id_2 is None:
+                    continue
+
+                seq_1 = reversed_sequence_store.get(seq_id_1)
+                seq_2 = reversed_sequence_store.get(seq_id_2)
+
+                difference = distance(seq_1, seq_2)
+                differences += [difference]
+                lengths += [(len(seq_1) + len(seq_2)) / 2]
+
+            total_distance = sum(differences) / sum(lengths)
+            dist_matrix[i,j] = total_distance
+            j += 1
+        i += 1
+
+    # df_dist_matrix = pd.DataFrame(dist_matrix, columns = sample_ids.keys(), index=sample_ids.keys())
+    pickle.dump(dist_matrix, open('dist_matrix.pkl', 'wb'))
+    pickle.dump(sample_ids.keys(), open('names.pkl', 'wb'))
+
+    lt = extract_lower_triangular(dist_matrix)
+    names = list(sample_ids.keys())
+
+    dist_matrix = DistanceMatrix(names, lt)
+    return dist_matrix
+
+def make_phylogenetic_tree(base_directory, limit =100000):
+
+    count = 0
+    sample_ids = defaultdict(dict)
+    sequence_store = defaultdict(int)
+    current_id = 0
+    for folder_name in os.listdir(base_directory):
+        if count > limit:
+            break
+        folder_path = os.path.join(base_directory, folder_name)
+        if os.path.isdir(folder_path):
+            file_path = os.path.join(folder_path, "cds_from_genomic.fna")
+            if os.path.isfile(file_path):
+                with open(file_path, 'r') as file:
+                    parsed = parse_fasta_file(file, folder_name, include_sequences=True)
+                    prepare_distance_data(parsed, sample_ids, sequence_store, current_id)
+                    count += 1
+
+    pickle.dump(sample_ids, open('sample_ids.pkl', 'wb'))
+    pickle.dump(sequence_store, open('sequences.pkl', 'wb'))
+
+    print("Finished reading files")
+    dist_matrix = calculate_distance_matrix(sample_ids, sequence_store)
+    print(f"Finished constructing distance matrix")
+
+    constructor = DistanceTreeConstructor()
+    upgma_tree = constructor.upgma(dist_matrix)
+    #NJTree = constructor.nj(distMatrix)
+
+    Phylo.draw(upgma_tree)
+
+
+
+
+
 
 
 def count_mutations_maf(sample_counts, unique_sequences, sequence_counts, anomalies, anomaly_threshold=0.1):
@@ -194,6 +310,10 @@ if __name__ == '__main__':
     reference_dir = '/Users/martin/Documents/data/reference_genome/ncbi_dataset/data/GCA_000005845.2/cds_from_genomic.fna'
 
     reference_genome = read_and_parse_reference_genome(reference_dir)
+    dm = make_phylogenetic_tree(base_directory)
+
+    print(dm)
+    exit()
     df = get_diffs(base_directory, reference_genome)
 
     import pickle

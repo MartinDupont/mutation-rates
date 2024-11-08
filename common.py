@@ -4,7 +4,7 @@ import pdb
 import re
 from typing import List, Optional
 
-COLUMNS_OF_INTEREST = ['gene', 'locus_tag', 'protein', 'protein_id', 'sequence']
+COLUMNS_OF_INTEREST = ['gene', 'locus_tag', 'protein', 'protein_id', 'sequence', 'sample']
 
 ERROR_COLUMNS = [
     'pseudo',
