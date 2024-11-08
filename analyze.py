@@ -13,7 +13,7 @@ def calculate_mutation_rates(df):
     # In the math explainer we showed that we can just count the total mutations over the total length
     df['total_len'] = df['sample_count'] * df['ref_length']
 
-    df['mutation_rate'] = df['n_mutations'] / df['total_len']
+    df['mutation_rate'] = df['n_mutations'] / (df['total_len'] * df['ref_length'])
 
     total_mutation_rate = df['n_mutations'].sum() / df['total_len'].sum()
 
@@ -50,7 +50,8 @@ def make_summary_plots(df):
     plt.close()
 
 
-    data = df[df['p_value'] == 0]['mutation_rate']
+    # TODO: What am I even trying to show here?
+    data = df[df['p_value'] < 1e-8]['mutation_rate']
     plt.hist(data, 100, alpha=0.5, color="black")
     plt.xlabel('Mutations per base pair')
     plt.show()
