@@ -1,8 +1,8 @@
-import os
-import pandas as pd
-import pdb
+import functools
 import re
-from typing import List, Optional
+import time
+from collections import defaultdict
+from typing import List
 
 COLUMNS_OF_INTEREST = ['gene', 'locus_tag', 'protein', 'protein_id', 'sequence', 'sample']
 
@@ -12,6 +12,14 @@ ERROR_COLUMNS = [
     'exception',
     'transl_except',
 ]
+
+def make_key(record):
+    gene = record.get('gene')
+    protein = record.get('protein')
+    if not gene or not protein:
+        return None
+
+    return gene + ":" + protein
 
 def iterate_fasta(file_handle):
     lines = file_handle.readlines()
@@ -68,3 +76,72 @@ def parse_fasta_file(file_handle, sample_name, include_sequences=False) -> List[
         records.append(record_data)
 
     return records
+
+
+
+
+
+TIME_STORE = defaultdict(lambda: 0.0)
+
+
+def time_it_cumulative(func):
+    """
+    Decorator function to time functions
+    """
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        t = time.time()
+        result = func(*args, **kwargs)
+
+        TIME_STORE[func.__name__] += time.time() - t
+        return result
+
+    return wrapper
+
+
+def time_it(func):
+    """
+    Decorator function to time functions
+    """
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        print(f"\nRunning {func.__name__}")
+        t = time.time()
+        result = func(*args, **kwargs)
+        print("Time taken for %s : %4.0f sec\n" % (func.__name__, time.time() - t))
+        return result
+
+    return wrapper
+
+
+TRANSLATION_TABLE = {
+    'ATA':'I', 'ATC':'I', 'ATT':'I', 'ATG':'M',
+    'ACA':'T', 'ACC':'T', 'ACG':'T', 'ACT':'T',
+    'AAC':'N', 'AAT':'N', 'AAA':'K', 'AAG':'K',
+    'AGC':'S', 'AGT':'S', 'AGA':'R', 'AGG':'R',
+    'CTA':'L', 'CTC':'L', 'CTG':'L', 'CTT':'L',
+    'CCA':'P', 'CCC':'P', 'CCG':'P', 'CCT':'P',
+    'CAC':'H', 'CAT':'H', 'CAA':'Q', 'CAG':'Q',
+    'CGA':'R', 'CGC':'R', 'CGG':'R', 'CGT':'R',
+    'GTA':'V', 'GTC':'V', 'GTG':'V', 'GTT':'V',
+    'GCA':'A', 'GCC':'A', 'GCG':'A', 'GCT':'A',
+    'GAC':'D', 'GAT':'D', 'GAA':'E', 'GAG':'E',
+    'GGA':'G', 'GGC':'G', 'GGG':'G', 'GGT':'G',
+    'TCA':'S', 'TCC':'S', 'TCG':'S', 'TCT':'S',
+    'TTC':'F', 'TTT':'F', 'TTA':'L', 'TTG':'L',
+    'TAC':'Y', 'TAT':'Y', 'TAA':'_', 'TAG':'_',
+    'TGC':'C', 'TGT':'C', 'TGA':'_', 'TGG':'W',
+}
+
+
+def translate(seq):
+    protein =""
+    if len(seq) % 3 != 0:
+        raise ValueError("DNA sequence has length that is not a multiple of 3")
+
+    for i in range(0, len(seq), 3):
+        codon = seq[i:i + 3]
+        protein+= TRANSLATION_TABLE[codon]
+    return protein
