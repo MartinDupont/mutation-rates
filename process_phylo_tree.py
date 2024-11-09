@@ -1,4 +1,5 @@
 import os
+import pdb
 import pickle
 from collections import defaultdict
 
@@ -76,7 +77,9 @@ def prepare_distance_data(records, sample_ids, sequence_store: IdStore, genes_to
 @time_it_cumulative
 def make_reduced_distance_matrix(reversed_sequence_store, genes_to_ids):
 
-    distances = {}
+    max_ids = max(key for key in reversed_sequence_store.keys())
+    max_ids = max_ids + 1
+    dist_matrix = np.zeros((max_ids, max_ids))
 
     for key, sample_ids_for_key in genes_to_ids.items():
         for i in sample_ids_for_key:
@@ -89,34 +92,48 @@ def make_reduced_distance_matrix(reversed_sequence_store, genes_to_ids):
                 difference = distance(s_i, s_j)
                 # This is doubling up! We should bail out if i = j
                 # And put in a 0 for i == j
-                distances[(i, j)] = difference
-                distances[(j, i)] = difference
+                dist_matrix[i, j] = difference
+                dist_matrix[j, i] = difference
 
-    return distances
+    return dist_matrix
 
 @time_it_cumulative
 def make_expanded_distance_matrix(sample_ids, distances):
+    all_gene_keys = set()
+    for ids in sample_ids.values():
+        all_gene_keys.update(ids.keys())
+
+    # When we were reading the files earlier, we didn't know all of the unique gene ids that we would encounter
+    # So we had to store the (sample_id, gene_id) -> seq_id mapping as an inconvenient dict.
+    # Now that we know how many we have, for each sample we can store an array,
+    # where the position in the array is the gene id, and the seq_id is the value
+    straightened_sample_ids = {}
+    all_gene_keys = list(all_gene_keys)
+    for sample_id, ids in sample_ids.items():
+        thing = np.ones(len(all_gene_keys), dtype=np.int64) * -1
+        for i, key in enumerate(all_gene_keys):
+            # We fill genes that aren't present in the sample with -1
+            thing[i] = ids.get(key, -1)
+
+        straightened_sample_ids[sample_id] = thing
+
+
+
     dist_matrix = np.zeros((len(sample_ids), len(sample_ids)))
     i = 0
-    for s1, ids_1 in sample_ids.items():
+    for s1, ids_1 in straightened_sample_ids.items():
         j = 0
-        for s2, ids_2 in sample_ids.items():
-            for key, seq_id_1 in ids_1.items():
-                seq_id_2 = ids_2.get(key)
-                if seq_id_2 is None:
-                    continue
-
-                if seq_id_1 == seq_id_2:
-                    # Distance for identical pairs is 0
-                    continue
-
-                difference = distances[(seq_id_1, seq_id_2)]
-                dist_matrix[i,j] += difference
+        for s2, ids_2 in straightened_sample_ids.items():
+            # The mask stops us from comparing genes where one is present in one sample but not another
+            mask_1 = ids_1 >= 0
+            mask_2 = ids_2 >= 0
+            selected_dists = distances[ids_1, ids_2]
+            dist_matrix[i,j] += np.sum(selected_dists * mask_1 * mask_2)
 
             j += 1
         i += 1
 
-    return dist_matrix
+    return dist_matrix, list(straightened_sample_ids.keys())
 
 
 @time_it_cumulative
@@ -142,17 +159,10 @@ def calculate_distance_matrix(sample_ids, sequence_store:IdStore, genes_to_ids):
 
     distances = make_reduced_distance_matrix(reversed_sequence_store, genes_to_ids)
 
-    dist_matrix = make_expanded_distance_matrix(sample_ids, distances)
+    dist_matrix, sample_names = make_expanded_distance_matrix(sample_ids, distances)
 
-    # df_dist_matrix = pd.DataFrame(dist_matrix, columns = sample_ids.keys(), index=sample_ids.keys())
-    pickle.dump(dist_matrix, open('dist_matrix.pkl', 'wb'))
-    pickle.dump(list(sample_ids.keys()), open('names.pkl', 'wb'))
+    return dist_matrix, sample_names
 
-    lt = extract_lower_triangular(dist_matrix)
-    names = list(sample_ids.keys())
-
-    dist_matrix = DistanceMatrix(names, lt)
-    return dist_matrix
 
 
 
@@ -179,24 +189,31 @@ def make_phylogenetic_tree(base_directory, limit =100000):
     pickle.dump(sequence_store, open('sequences.pkl', 'wb'))
 
     print("Finished reading files")
-    dist_matrix = calculate_distance_matrix(sample_ids, sequence_store, genes_to_ids)
+    dist_matrix, sample_names = calculate_distance_matrix(sample_ids, sequence_store, genes_to_ids)
     print(f"Finished constructing distance matrix")
 
-    #constructor = DistanceTreeConstructor()
-    #upgma_tree = constructor.upgma(dist_matrix)
+    pickle.dump(dist_matrix, open('dist_matrix.pkl', 'wb'))
+    pickle.dump(sample_names, open('names.pkl', 'wb'))
+
+    lt = extract_lower_triangular(dist_matrix)
+    names = list(sample_ids.keys())
+
+    dist_matrix = DistanceMatrix(names, lt)
+
+    constructor = DistanceTreeConstructor()
+    upgma_tree = constructor.upgma(dist_matrix)
     #NJTree = constructor.nj(distMatrix)
 
-    #Phylo.draw(upgma_tree)
+    Phylo.draw(upgma_tree)
 
 
 
 if __name__ == '__main__':
     base_directory = '/Users/martin/Documents/data/ncbi_new/ncbi_dataset/ncbi_dataset/data'
 
+    limit = 10
+    dm = make_phylogenetic_tree(base_directory, limit=limit)
+    print(f"Limit: {limit}")
+    for key, value in TIME_STORE.items():
+        print(f"\t Time for {key}: {value}")
 
-    for limit in [10, 20, 40, 80, 160, 320, 640]:
-        TIME_STORE.clear()
-        dm = make_phylogenetic_tree(base_directory, limit=limit)
-        print(f"Limit: {limit}")
-        for key, value in TIME_STORE.items():
-            print(f"\t Time for {key}: {value}")
