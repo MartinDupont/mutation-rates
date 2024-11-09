@@ -11,6 +11,44 @@ import numpy as np
 import matplotlib.pyplot as plt
 from Bio import Phylo
 from Bio.Phylo.TreeConstruction import DistanceMatrix, DistanceTreeConstructor
+import functools
+import time
+import pickle
+
+TIME_STORE = defaultdict(lambda: 0.0)
+
+
+def time_it_cumulative(func):
+    """
+    Decorator function to time functions
+    """
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        t = time.time()
+        result = func(*args, **kwargs)
+
+        TIME_STORE[func.__name__] += time.time() - t
+        return result
+
+    return wrapper
+
+
+def time_it(func):
+    """
+    Decorator function to time functions
+    """
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        print(f"\nRunning {func.__name__}")
+        t = time.time()
+        result = func(*args, **kwargs)
+        print("Time taken for %s : %4.0f sec\n" % (func.__name__, time.time() - t))
+        return result
+
+    return wrapper
+
 
 TRANSLATION_TABLE = {
     'ATA':'I', 'ATC':'I', 'ATT':'I', 'ATG':'M',
@@ -103,7 +141,8 @@ def find_matches(records, sample_counts, unique_sequences, sequence_counts, refe
 
 
 
-def prepare_distance_data(records, sample_ids, sequence_store, current_id):
+@time_it_cumulative
+def prepare_distance_data(records, sample_ids, sequence_store, genes_to_ids, current_id):
     for r in records:
         key = make_key(r)
         sample_sequence = r.get('sequence')
@@ -121,9 +160,12 @@ def prepare_distance_data(records, sample_ids, sequence_store, current_id):
         id = sequence_store.get(sample_protein)
         if id is None:
             sequence_store[sample_protein] = current_id
+            genes_to_ids[key].add(current_id)
+
             sample_ids[r['sample']].update({key: current_id})
             current_id += 1
         else:
+            genes_to_ids[key].add(id)
             sample_ids[r['sample']].update({key: id})
 
 
@@ -142,9 +184,38 @@ def extract_lower_triangular(matrix):
     return lower_triangular
 
 
-def calculate_distance_matrix(sample_ids, sequence_store):
+@time_it_cumulative
+def calculate_distance_matrix(sample_ids, sequence_store, genes_to_ids):
+    """
+    We try to calculate an NxN distance matrix.
+
+    There are a lot of duplicated sequences. For any given gene, there are only a few variants and they are shared
+    between multiple samples. So to calculate distance, it isn't efficient to stitch together the whole genome for
+    each sample and compute pairwise distances.
+
+    We instead just compute distances between pairs of sequences for individual genes, and for each sample and gene,
+    store a reference to the sequence that it has. Due to the quadratic scaling, the runtime gains are significant.
+
+
+    :param sample_ids:
+    :param sequence_store:
+    :param genes_to_ids:
+    :return:
+    """
 
     reversed_sequence_store = {v:k for k, v in sequence_store.items()}
+
+    distances = {}
+
+    for key, sample_ids_for_key in genes_to_ids.items():
+        for i in sample_ids_for_key:
+            for j in sample_ids_for_key:
+                s_i = reversed_sequence_store[i]
+                s_j = reversed_sequence_store[j]
+
+                difference = distance(s_i, s_j)
+                distances[(i, j)] = difference
+                distances[(j, i)] = difference
 
     dist_matrix = np.zeros((len(sample_ids), len(sample_ids)))
     i = 0
@@ -152,27 +223,22 @@ def calculate_distance_matrix(sample_ids, sequence_store):
         j = 0
         for s2, ids_2 in sample_ids.items():
             differences = []
-            lengths = []
             for key, seq_id_1 in ids_1.items():
                 seq_id_2 = ids_2.get(key)
                 if seq_id_2 is None:
                     continue
 
-                seq_1 = reversed_sequence_store.get(seq_id_1)
-                seq_2 = reversed_sequence_store.get(seq_id_2)
-
-                difference = distance(seq_1, seq_2)
+                difference = distances[(seq_id_1, seq_id_2)]
                 differences += [difference]
-                lengths += [(len(seq_1) + len(seq_2)) / 2]
 
-            total_distance = sum(differences) / sum(lengths)
+            total_distance = sum(differences)
             dist_matrix[i,j] = total_distance
             j += 1
         i += 1
 
     # df_dist_matrix = pd.DataFrame(dist_matrix, columns = sample_ids.keys(), index=sample_ids.keys())
     pickle.dump(dist_matrix, open('dist_matrix.pkl', 'wb'))
-    pickle.dump(sample_ids.keys(), open('names.pkl', 'wb'))
+    pickle.dump(list(sample_ids.keys()), open('names.pkl', 'wb'))
 
     lt = extract_lower_triangular(dist_matrix)
     names = list(sample_ids.keys())
@@ -185,6 +251,7 @@ def make_phylogenetic_tree(base_directory, limit =100000):
     count = 0
     sample_ids = defaultdict(dict)
     sequence_store = defaultdict(int)
+    genes_to_ids = defaultdict(set)
     current_id = 0
     for folder_name in os.listdir(base_directory):
         if count > limit:
@@ -195,14 +262,14 @@ def make_phylogenetic_tree(base_directory, limit =100000):
             if os.path.isfile(file_path):
                 with open(file_path, 'r') as file:
                     parsed = parse_fasta_file(file, folder_name, include_sequences=True)
-                    prepare_distance_data(parsed, sample_ids, sequence_store, current_id)
+                    prepare_distance_data(parsed, sample_ids, sequence_store, genes_to_ids, current_id)
                     count += 1
 
     pickle.dump(sample_ids, open('sample_ids.pkl', 'wb'))
     pickle.dump(sequence_store, open('sequences.pkl', 'wb'))
 
     print("Finished reading files")
-    dist_matrix = calculate_distance_matrix(sample_ids, sequence_store)
+    dist_matrix = calculate_distance_matrix(sample_ids, sequence_store, genes_to_ids)
     print(f"Finished constructing distance matrix")
 
     constructor = DistanceTreeConstructor()
@@ -210,10 +277,6 @@ def make_phylogenetic_tree(base_directory, limit =100000):
     #NJTree = constructor.nj(distMatrix)
 
     Phylo.draw(upgma_tree)
-
-
-
-
 
 
 
@@ -310,7 +373,11 @@ if __name__ == '__main__':
     reference_dir = '/Users/martin/Documents/data/reference_genome/ncbi_dataset/data/GCA_000005845.2/cds_from_genomic.fna'
 
     reference_genome = read_and_parse_reference_genome(reference_dir)
+    #df = get_diffs(base_directory, reference_genome)
+
     dm = make_phylogenetic_tree(base_directory)
+    for key, value in TIME_STORE.items():
+        print(f"\t Time for {key}: {value}")
 
     print(dm)
     exit()
