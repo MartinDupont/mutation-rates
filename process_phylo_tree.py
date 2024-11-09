@@ -144,14 +144,6 @@ def calculate_distance_matrix(sample_ids, sequence_store:IdStore, genes_to_ids):
 
     dist_matrix = make_expanded_distance_matrix(sample_ids, distances)
 
-    # df_dist_matrix = pd.DataFrame(dist_matrix, columns = sample_ids.keys(), index=sample_ids.keys())
-    pickle.dump(dist_matrix, open('dist_matrix.pkl', 'wb'))
-    pickle.dump(list(sample_ids.keys()), open('names.pkl', 'wb'))
-
-    lt = extract_lower_triangular(dist_matrix)
-    names = list(sample_ids.keys())
-
-    dist_matrix = DistanceMatrix(names, lt)
     return dist_matrix
 
 
@@ -182,8 +174,18 @@ def make_phylogenetic_tree(base_directory, limit =100000):
     dist_matrix = calculate_distance_matrix(sample_ids, sequence_store, genes_to_ids)
     print(f"Finished constructing distance matrix")
 
-    #constructor = DistanceTreeConstructor()
-    #upgma_tree = constructor.upgma(dist_matrix)
+    pickle.dump(dist_matrix, open('dist_matrix.pkl', 'wb'))
+    pickle.dump(list(sample_ids.keys()), open('names.pkl', 'wb'))
+
+    lt = extract_lower_triangular(dist_matrix)
+    names = list(sample_ids.keys())
+
+    dist_matrix = DistanceMatrix(names, lt)
+
+    constructor = DistanceTreeConstructor()
+    upgma_tree = constructor.upgma(dist_matrix)
+    pickle.dump(upgma_tree, open('upgma_tree.pkl', 'wb'))
+
     #NJTree = constructor.nj(distMatrix)
 
     #Phylo.draw(upgma_tree)
@@ -193,10 +195,9 @@ def make_phylogenetic_tree(base_directory, limit =100000):
 if __name__ == '__main__':
     base_directory = '/Users/martin/Documents/data/ncbi_new/ncbi_dataset/ncbi_dataset/data'
 
-
-    for limit in [10, 20, 40, 80, 160, 320, 640]:
-        TIME_STORE.clear()
-        dm = make_phylogenetic_tree(base_directory, limit=limit)
-        print(f"Limit: {limit}")
-        for key, value in TIME_STORE.items():
-            print(f"\t Time for {key}: {value}")
+    limit = 1000000
+    TIME_STORE.clear()
+    dm = make_phylogenetic_tree(base_directory, limit=limit)
+    print(f"Limit: {limit}")
+    for key, value in TIME_STORE.items():
+        print(f"\t Time for {key}: {value}")
