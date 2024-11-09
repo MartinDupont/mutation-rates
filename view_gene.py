@@ -1,0 +1,84 @@
+import os
+from collections import defaultdict
+
+import matplotlib.pyplot as plt
+from Levenshtein import distance
+
+from common import parse_fasta_file, make_key, translate
+
+
+def make_muations_list(unique_sequences, sequence_counts):
+    biggest_count = 0
+    most_common_sequence = None
+    for s in unique_sequences:
+        if sequence_counts[s] > biggest_count:
+            biggest_count = sequence_counts[s]
+            most_common_sequence = s
+
+    n_mutations_list = []
+
+    for s in unique_sequences:
+        difference = distance(most_common_sequence, s)
+        for i in range(sequence_counts[s]):
+            n_mutations_list += [difference]
+
+    return n_mutations_list
+
+
+def find_matches(target_key, records, unique_sequences, sequence_counts):
+    for r in records:
+        key = make_key(r)
+        sample_sequence = r.get('sequence')
+        if not key or not sample_sequence:
+            continue
+
+        if key != target_key:
+            continue
+
+        try:
+            sample_protein = translate(sample_sequence)
+        except KeyError as e:
+            # Invalid gene sequence
+            continue
+
+        unique_sequences.add(sample_protein)
+        sequence_counts[sample_protein] += 1
+        break
+
+
+def get_diffs(base_directory, target_key, limit=100000):
+    count = 0
+    unique_sequences = set()
+    sequence_counts = defaultdict(int)
+    for folder_name in os.listdir(base_directory):
+        if count > limit:
+            break
+        folder_path = os.path.join(base_directory, folder_name)
+        if os.path.isdir(folder_path):
+            file_path = os.path.join(folder_path, "cds_from_genomic.fna")
+            if os.path.isfile(file_path):
+                with open(file_path, 'r') as file:
+                    parsed = parse_fasta_file(file, folder_name, include_sequences=True)
+                    find_matches(target_key, parsed, unique_sequences, sequence_counts)
+                    count += 1
+
+    n_mutations_list = make_muations_list(unique_sequences, sequence_counts)
+
+    plt.hist(n_mutations_list, 20, alpha=0.5, color="blue")
+    plt.xlabel('N differences from most common sequence')
+    plt.ylabel('Count')
+    plt.title(target_key)
+    plt.show()
+    plt.close()
+
+
+if __name__ == '__main__':
+    plt.ioff()
+    base_directory = '/Users/martin/Documents/data/ncbi_new/ncbi_dataset/ncbi_dataset/data'
+
+    key = 'rhsC:rhs element protein RhsC'
+    key = 'dgoK:2-dehydro-3-deoxygalactonokinase'
+    key = 'hofN:DNA utilization protein HofN'
+    key = 'nanK:N-acetylmannosamine kinase'
+
+    get_diffs(base_directory, key)
