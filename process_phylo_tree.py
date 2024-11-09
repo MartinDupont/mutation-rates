@@ -94,6 +94,30 @@ def make_reduced_distance_matrix(reversed_sequence_store, genes_to_ids):
 
     return distances
 
+@time_it_cumulative
+def make_expanded_distance_matrix(sample_ids, distances):
+    dist_matrix = np.zeros((len(sample_ids), len(sample_ids)))
+    i = 0
+    for s1, ids_1 in sample_ids.items():
+        j = 0
+        for s2, ids_2 in sample_ids.items():
+            for key, seq_id_1 in ids_1.items():
+                seq_id_2 = ids_2.get(key)
+                if seq_id_2 is None:
+                    continue
+
+                if seq_id_1 == seq_id_2:
+                    # Distance for identical pairs is 0
+                    continue
+
+                difference = distances[(seq_id_1, seq_id_2)]
+                dist_matrix[i,j] += difference
+
+            j += 1
+        i += 1
+
+    return dist_matrix
+
 
 @time_it_cumulative
 def calculate_distance_matrix(sample_ids, sequence_store:IdStore, genes_to_ids):
@@ -118,25 +142,7 @@ def calculate_distance_matrix(sample_ids, sequence_store:IdStore, genes_to_ids):
 
     distances = make_reduced_distance_matrix(reversed_sequence_store, genes_to_ids)
 
-    dist_matrix = np.zeros((len(sample_ids), len(sample_ids)))
-    i = 0
-    for s1, ids_1 in sample_ids.items():
-        j = 0
-        for s2, ids_2 in sample_ids.items():
-            for key, seq_id_1 in ids_1.items():
-                seq_id_2 = ids_2.get(key)
-                if seq_id_2 is None:
-                    continue
-
-                if seq_id_1 == seq_id_2:
-                    # Distance for identical pairs is 0
-                    continue
-
-                difference = distances[(seq_id_1, seq_id_2)]
-                dist_matrix[i,j] += difference
-
-            j += 1
-        i += 1
+    dist_matrix = make_expanded_distance_matrix(sample_ids, distances)
 
     # df_dist_matrix = pd.DataFrame(dist_matrix, columns = sample_ids.keys(), index=sample_ids.keys())
     pickle.dump(dist_matrix, open('dist_matrix.pkl', 'wb'))
@@ -176,11 +182,11 @@ def make_phylogenetic_tree(base_directory, limit =100000):
     dist_matrix = calculate_distance_matrix(sample_ids, sequence_store, genes_to_ids)
     print(f"Finished constructing distance matrix")
 
-    constructor = DistanceTreeConstructor()
-    upgma_tree = constructor.upgma(dist_matrix)
+    #constructor = DistanceTreeConstructor()
+    #upgma_tree = constructor.upgma(dist_matrix)
     #NJTree = constructor.nj(distMatrix)
 
-    Phylo.draw(upgma_tree)
+    #Phylo.draw(upgma_tree)
 
 
 
@@ -188,6 +194,9 @@ if __name__ == '__main__':
     base_directory = '/Users/martin/Documents/data/ncbi_new/ncbi_dataset/ncbi_dataset/data'
 
 
-    dm = make_phylogenetic_tree(base_directory, limit=400)
-    for key, value in TIME_STORE.items():
-        print(f"\t Time for {key}: {value}")
+    for limit in [10, 20, 40, 80, 160, 320, 640]:
+        TIME_STORE.clear()
+        dm = make_phylogenetic_tree(base_directory, limit=limit)
+        print(f"Limit: {limit}")
+        for key, value in TIME_STORE.items():
+            print(f"\t Time for {key}: {value}")
