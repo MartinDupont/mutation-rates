@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from Levenshtein import distance
 
-from common import parse_fasta_file, make_key, translate
+from common import parse_fasta_file, make_key, translate, loop_over_ncbi_folders
 
 
 def first_diff(string_a, string_b):
@@ -101,23 +101,14 @@ def count_mutations_maf(sample_counts, unique_sequences, sequence_counts, anomal
 
 def get_diffs(base_directory, reference_genome, limit =100000):
 
-    count = 0
     anomalies = defaultdict(int)
     sample_counts = defaultdict(int)
     unique_sequences = defaultdict(set)
     sequence_counts = defaultdict(int)
-    for folder_name in os.listdir(base_directory):
-        if count > limit:
-            break
-        folder_path = os.path.join(base_directory, folder_name)
-        if os.path.isdir(folder_path):
-            file_path = os.path.join(folder_path, "cds_from_genomic.fna")
-            if os.path.isfile(file_path):
-                #print(f'reading CDS from {folder_path}')
-                with open(file_path, 'r') as file:
-                    parsed = parse_fasta_file(file, folder_name, include_sequences=True)
-                    find_matches(parsed, sample_counts, unique_sequences, sequence_counts, reference_genome)
-                    count += 1
+    for file_path, folder_name in loop_over_ncbi_folders(base_directory, limit):
+        with open(file_path, 'r') as file:
+            parsed = parse_fasta_file(file, folder_name, include_sequences=True)
+            find_matches(parsed, sample_counts, unique_sequences, sequence_counts, reference_genome)
 
 
     mutations, mafs = count_mutations_maf(sample_counts, unique_sequences, sequence_counts, anomalies)

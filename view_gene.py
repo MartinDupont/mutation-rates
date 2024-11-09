@@ -4,7 +4,7 @@ from collections import defaultdict
 import matplotlib.pyplot as plt
 from Levenshtein import distance
 
-from common import parse_fasta_file, make_key, translate
+from common import parse_fasta_file, make_key, translate, loop_over_ncbi_folders
 
 
 def make_muations_list(unique_sequences, sequence_counts):
@@ -46,21 +46,13 @@ def find_matches(target_key, records, unique_sequences, sequence_counts):
         break
 
 
-def get_diffs(base_directory, target_key, limit=100000):
-    count = 0
+def view_gene(base_directory, target_key, limit=100000):
     unique_sequences = set()
     sequence_counts = defaultdict(int)
-    for folder_name in os.listdir(base_directory):
-        if count > limit:
-            break
-        folder_path = os.path.join(base_directory, folder_name)
-        if os.path.isdir(folder_path):
-            file_path = os.path.join(folder_path, "cds_from_genomic.fna")
-            if os.path.isfile(file_path):
-                with open(file_path, 'r') as file:
-                    parsed = parse_fasta_file(file, folder_name, include_sequences=True)
-                    find_matches(target_key, parsed, unique_sequences, sequence_counts)
-                    count += 1
+    for file_path, folder_name in loop_over_ncbi_folders(base_directory, limit):
+        with open(file_path, 'r') as file:
+            parsed = parse_fasta_file(file, folder_name, include_sequences=True)
+            find_matches(target_key, parsed, unique_sequences, sequence_counts)
 
     n_mutations_list = make_muations_list(unique_sequences, sequence_counts)
 
@@ -81,4 +73,4 @@ if __name__ == '__main__':
     key = 'hofN:DNA utilization protein HofN'
     key = 'nanK:N-acetylmannosamine kinase'
 
-    get_diffs(base_directory, key)
+    view_gene(base_directory, key)

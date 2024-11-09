@@ -1,3 +1,4 @@
+import os
 import functools
 import re
 import time
@@ -145,3 +146,17 @@ def translate(seq):
         codon = seq[i:i + 3]
         protein+= TRANSLATION_TABLE[codon]
     return protein
+
+
+def loop_over_ncbi_folders(base_directory, limit):
+    count = 0
+    for folder_name in os.listdir(base_directory):
+        if count >= limit:
+            break
+        folder_path = os.path.join(base_directory, folder_name)
+        if os.path.isdir(folder_path):
+            file_path = os.path.join(folder_path, "cds_from_genomic.fna")
+            if os.path.isfile(file_path):
+                count += 1
+                yield file_path, folder_name
+

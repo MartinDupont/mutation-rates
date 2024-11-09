@@ -1,15 +1,12 @@
-import os
 import pickle
 from collections import defaultdict
 
 import numpy as np
-from Bio import Phylo
 from Bio.Phylo.TreeConstruction import DistanceMatrix, DistanceTreeConstructor
 from Levenshtein import distance
 
-from common import make_key, time_it_cumulative, TIME_STORE, time_it
-from common import parse_fasta_file, translate
-
+from common import make_key, time_it_cumulative, TIME_STORE
+from common import parse_fasta_file, translate, loop_over_ncbi_folders
 
 
 class IdStore():
@@ -28,8 +25,7 @@ class IdStore():
         return retval
 
     def to_reverse_map(self):
-        return {v:k for k, v in self.store.items()}
-
+        return {v: k for k, v in self.store.items()}
 
 
 def extract_lower_triangular(matrix):
@@ -72,10 +68,8 @@ def prepare_distance_data(records, sample_ids, sequence_store: IdStore, genes_to
         sample_ids[sample_id].update({key: id})
 
 
-
 @time_it_cumulative
 def make_reduced_distance_matrix(ids_to_sequences, genes_to_ids):
-
     distances = {}
 
     for key, sample_ids_for_key in genes_to_ids.items():
@@ -94,6 +88,7 @@ def make_reduced_distance_matrix(ids_to_sequences, genes_to_ids):
 
     return distances
 
+
 @time_it_cumulative
 def make_expanded_distance_matrix(sample_ids, distances):
     dist_matrix = np.zeros((len(sample_ids), len(sample_ids)))
@@ -111,7 +106,7 @@ def make_expanded_distance_matrix(sample_ids, distances):
                     continue
 
                 difference = distances[(seq_id_1, seq_id_2)]
-                dist_matrix[i,j] += difference
+                dist_matrix[i, j] += difference
 
             j += 1
         i += 1
@@ -120,7 +115,7 @@ def make_expanded_distance_matrix(sample_ids, distances):
 
 
 @time_it_cumulative
-def calculate_distance_matrix(sample_ids, sequence_store:IdStore, genes_to_ids):
+def calculate_distance_matrix(sample_ids, sequence_store: IdStore, genes_to_ids):
     """
     We try to calculate an NxN distance matrix.
 
@@ -147,25 +142,14 @@ def calculate_distance_matrix(sample_ids, sequence_store:IdStore, genes_to_ids):
     return dist_matrix
 
 
-
-
-def make_phylogenetic_tree(base_directory, limit =100000):
-
-    count = 0
+def make_phylogenetic_tree(base_directory, limit=100000):
     sample_ids = defaultdict(dict)
     sequence_store = IdStore()
     genes_to_ids = defaultdict(set)
-    for folder_name in os.listdir(base_directory):
-        if count >= limit:
-            break
-        folder_path = os.path.join(base_directory, folder_name)
-        if os.path.isdir(folder_path):
-            file_path = os.path.join(folder_path, "cds_from_genomic.fna")
-            if os.path.isfile(file_path):
-                with open(file_path, 'r') as file:
-                    parsed = parse_fasta_file(file, folder_name, include_sequences=True)
-                    prepare_distance_data(parsed, sample_ids, sequence_store, genes_to_ids)
-                    count += 1
+    for file_path, folder_name in loop_over_ncbi_folders(base_directory, limit):
+        with open(file_path, 'r') as file:
+            parsed = parse_fasta_file(file, folder_name, include_sequences=True)
+            prepare_distance_data(parsed, sample_ids, sequence_store, genes_to_ids)
 
     pickle.dump(sample_ids, open('sample_ids.pkl', 'wb'))
     pickle.dump(sequence_store, open('sequences.pkl', 'wb'))
@@ -186,10 +170,9 @@ def make_phylogenetic_tree(base_directory, limit =100000):
     upgma_tree = constructor.upgma(dist_matrix)
     pickle.dump(upgma_tree, open('upgma_tree.pkl', 'wb'))
 
-    #NJTree = constructor.nj(distMatrix)
+    # NJTree = constructor.nj(distMatrix)
 
-    #Phylo.draw(upgma_tree)
-
+    # Phylo.draw(upgma_tree)
 
 
 if __name__ == '__main__':
