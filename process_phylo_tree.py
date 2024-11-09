@@ -74,7 +74,7 @@ def prepare_distance_data(records, sample_ids, sequence_store: IdStore, genes_to
 
 
 @time_it_cumulative
-def make_reduced_distance_matrix(reversed_sequence_store, genes_to_ids):
+def make_reduced_distance_matrix(ids_to_sequences, genes_to_ids):
 
     distances = {}
 
@@ -83,8 +83,8 @@ def make_reduced_distance_matrix(reversed_sequence_store, genes_to_ids):
             for j in sample_ids_for_key:
                 if j >= i:
                     continue
-                s_i = reversed_sequence_store[i]
-                s_j = reversed_sequence_store[j]
+                s_i = ids_to_sequences[i]
+                s_j = ids_to_sequences[j]
 
                 difference = distance(s_i, s_j)
                 # This is doubling up! We should bail out if i = j
@@ -128,7 +128,7 @@ def calculate_distance_matrix(sample_ids, sequence_store:IdStore, genes_to_ids):
     between multiple samples. So to calculate distance, it isn't efficient to stitch together the whole genome for
     each sample and compute pairwise distances.
 
-    We instead just compute distances between pairs of sequences for individual genes, and for each sample and gene,
+    We instead just compute distances between unique pairs of sequences for individual genes, and for each sample and gene,
     store a reference to the sequence that it has. Due to the quadratic scaling, the runtime gains are significant.
 
 
@@ -138,9 +138,9 @@ def calculate_distance_matrix(sample_ids, sequence_store:IdStore, genes_to_ids):
     :return:
     """
 
-    reversed_sequence_store = sequence_store.to_reverse_map()
+    ids_to_sequences = sequence_store.to_reverse_map()
 
-    distances = make_reduced_distance_matrix(reversed_sequence_store, genes_to_ids)
+    distances = make_reduced_distance_matrix(ids_to_sequences, genes_to_ids)
 
     dist_matrix = make_expanded_distance_matrix(sample_ids, distances)
 
