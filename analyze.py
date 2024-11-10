@@ -2,6 +2,7 @@ import pdb
 from scipy.stats import poisson
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
 
 
 def calculate_mutation_rates(df, anomaly_threshold=0, h_null_mutation_rate=None):
@@ -25,17 +26,46 @@ def calculate_mutation_rates(df, anomaly_threshold=0, h_null_mutation_rate=None)
 
     df['unique_ratio'] = df['n_sequences'] / df['sample_count']
 
+    df['gene_id'] = df['identifier'].str.split(':').str[0]
+
     return df
 
 
-def make_summary_plots(df):
+def join_on_essential(df):
+    df_essential = pd.read_csv('essential_genes.csv', sep='\t')[['Gene Name', 'Product']]
+
+    df_matched = df.merge(df_essential, left_on=['gene_id'], right_on=['Gene Name'], how='inner')
+
+    return df_matched
+
+
+def make_summary_plots(df, df_matched):
+
+    # Create a 1x2 grid layout for two plots
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
     data = df['p_value']
-    plt.hist(data, 100, alpha=0.5, color="b")
-    plt.xlabel('p-value')
-    plt.ylabel('count')
-    plt.title("p-value distribution across genes")
+    median = df['p_value'].median()
+    ax1.hist(data, 100, alpha=0.5, color="b")
+    ax1.axvline(median, label='median', color='red')
+    ax1.set_xlabel('p-value')
+    ax1.set_ylabel('count')
+    ax1.set_title("p-value distribution across genes")
+    ax1.legend()
+
+    data = df_matched['p_value']
+    median = df_matched['p_value'].median()
+    ax2.hist(data, 100, alpha=0.5, color="b")
+    ax2.axvline(median, label='median', color='red')
+    ax2.set_xlabel('p-value')
+    ax2.set_ylabel('count')
+    ax2.set_title("p-value distribution across essential genes")
+    ax2.legend()
+
+    # Adjust layout to avoid overlap
+    plt.tight_layout()
     plt.show()
-    plt.close()
+
 
     data = df['mutation_rate']
     plt.hist(data, 40, alpha=0.5, color="b", log=True)
@@ -72,4 +102,7 @@ if __name__ == '__main__':
     print(df_significantly_high)
 
     df_middle = calculate_mutation_rates(df)
-    make_summary_plots(df_middle)
+
+    df_matched = join_on_essential(df_middle)
+
+    make_summary_plots(df_middle, df_matched)
