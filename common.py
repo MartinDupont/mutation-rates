@@ -20,7 +20,7 @@ def make_key(record):
     if not gene or not protein:
         return None
 
-    return gene + ":" + protein
+    return gene #+ ":" + protein
 
 def iterate_fasta(file_handle):
     lines = file_handle.readlines()

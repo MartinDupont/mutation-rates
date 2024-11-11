@@ -1,4 +1,5 @@
 import os
+import pdb
 from collections import defaultdict
 
 import matplotlib.pyplot as plt
@@ -34,7 +35,7 @@ def read_and_parse_reference_genome(file_path):
 
     return sequence_map
 
-def find_matches(records, sample_counts, unique_sequences, sequence_counts, reference_genome):
+def find_matches(records, sample_counts, unique_sequences, sequence_counts, reference_genome, protein_names):
     for r in records:
         key = make_key(r)
         sample_sequence = r.get('sequence')
@@ -52,10 +53,15 @@ def find_matches(records, sample_counts, unique_sequences, sequence_counts, refe
         except KeyError as e:
             # Invalid gene sequence
             continue
+        except ValueError as e:
+            # Invalid gene sequence
+            continue
 
         sample_counts[key] += 1
         unique_sequences[key].add(sample_protein)
         sequence_counts[sample_protein] += 1
+        # This will clobber any existing key. We don't really care because the protein names are just for flavor
+        protein_names[key] = r.get('protein')
 
 
 def count_mutations_maf(sample_counts, unique_sequences, sequence_counts, anomalies, anomaly_threshold=0.1):
@@ -105,15 +111,17 @@ def get_diffs(base_directory, reference_genome, limit =100000):
     sample_counts = defaultdict(int)
     unique_sequences = defaultdict(set)
     sequence_counts = defaultdict(int)
+    protein_names = dict()
     for file_path, folder_name in loop_over_ncbi_folders(base_directory, limit):
         with open(file_path, 'r') as file:
             parsed = parse_fasta_file(file, folder_name, include_sequences=True)
-            find_matches(parsed, sample_counts, unique_sequences, sequence_counts, reference_genome)
+            find_matches(parsed, sample_counts, unique_sequences, sequence_counts, reference_genome, protein_names)
 
 
     mutations, mafs = count_mutations_maf(sample_counts, unique_sequences, sequence_counts, anomalies)
 
-    proteins = [k for k in sample_counts.keys()]
+    identifiers = [k for k in sample_counts.keys()]
+    proteins = [protein_names[k] for k in sample_counts.keys()]
     counts = [sample_counts[k] for k in sample_counts.keys()]
     n_mutations = [mutations[k] for k in sample_counts.keys()]
     ref_lengths = [len(reference_genome[k]) for k in sample_counts.keys()]
@@ -123,7 +131,8 @@ def get_diffs(base_directory, reference_genome, limit =100000):
     major_alle_freqs = [mafs[k] for k in sample_counts.keys()]
 
     df = pd.DataFrame({
-        "identifier": proteins,
+        "identifier": identifiers,
+        "protein": proteins,
         "sample_count": counts,
         "n_mutations": n_mutations,
         "ref_length": ref_lengths,
@@ -131,7 +140,6 @@ def get_diffs(base_directory, reference_genome, limit =100000):
         "n_sequences": n_sequences,
         "major_allele_freq": major_alle_freqs,
     })
-
 
     return df
 
