@@ -10,6 +10,9 @@ from common import parse_fasta_file, translate, loop_over_ncbi_folders
 
 
 class IdStore():
+    """
+    This class just stores sequences and gives them a unique autoincrementing id.
+    """
     def __init__(self):
         self.next_id = 0
         self.store = {}
@@ -96,6 +99,9 @@ def make_expanded_distance_matrix(sample_ids, distances):
     for s1, ids_1 in sample_ids.items():
         j = 0
         for s2, ids_2 in sample_ids.items():
+            if j >= i:
+                j += 1
+                continue
             for key, seq_id_1 in ids_1.items():
                 seq_id_2 = ids_2.get(key)
                 if seq_id_2 is None:
