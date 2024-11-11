@@ -5,7 +5,7 @@ import numpy as np
 from Bio.Phylo.TreeConstruction import DistanceMatrix, DistanceTreeConstructor
 from Levenshtein import distance
 
-from common import make_key, time_it_cumulative, TIME_STORE
+from common import make_key, time_it_cumulative, TIME_STORE, read_assembly_data_report
 from common import parse_fasta_file, translate, loop_over_ncbi_folders
 
 
@@ -143,18 +143,25 @@ def calculate_distance_matrix(sample_ids, sequence_store: IdStore, genes_to_ids)
 
     distances = make_reduced_distance_matrix(ids_to_sequences, genes_to_ids)
 
+    print(f"Done making reduced distance matrix")
     dist_matrix = make_expanded_distance_matrix(sample_ids, distances)
 
     return dist_matrix
 
 
-def make_phylogenetic_tree(base_directory, limit=100000):
+def make_phylogenetic_tree(base_directory, name_to_strain, limit=100000):
     sample_ids = defaultdict(dict)
     sequence_store = IdStore()
     genes_to_ids = defaultdict(set)
+    strains_encountered_so_far = set()
     for file_path, folder_name in loop_over_ncbi_folders(base_directory, limit):
         with open(file_path, 'r') as file:
             parsed = parse_fasta_file(file, folder_name, include_sequences=True)
+            strain = name_to_strain.get(folder_name)
+            if strain is not None and strain in strains_encountered_so_far:
+                continue
+
+            strains_encountered_so_far.add(strain)
             prepare_distance_data(parsed, sample_ids, sequence_store, genes_to_ids)
 
     pickle.dump(sample_ids, open('sample_ids.pkl', 'wb'))
@@ -183,10 +190,11 @@ def make_phylogenetic_tree(base_directory, limit=100000):
 
 if __name__ == '__main__':
     base_directory = '/Users/martin/Documents/data/ncbi_new/ncbi_dataset/ncbi_dataset/data'
+    name_to_strain = read_assembly_data_report(base_directory)
 
     limit = 1000000
     TIME_STORE.clear()
-    dm = make_phylogenetic_tree(base_directory, limit=limit)
+    dm = make_phylogenetic_tree(base_directory, name_to_strain, limit=limit)
     print(f"Limit: {limit}")
     for key, value in TIME_STORE.items():
         print(f"\t Time for {key}: {value}")

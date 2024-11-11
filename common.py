@@ -4,6 +4,7 @@ import re
 import time
 from collections import defaultdict
 from typing import List
+import json
 
 COLUMNS_OF_INTEREST = ['gene', 'locus_tag', 'protein', 'protein_id', 'sequence', 'sample']
 
@@ -160,3 +161,18 @@ def loop_over_ncbi_folders(base_directory, limit):
                 count += 1
                 yield file_path, folder_name
 
+
+def read_assembly_data_report(base_directory):
+    """
+    We read the assembly data because it mentions the strain name for each sample.
+    We use this to filter out duplicated strains.
+    :param base_directory:
+    :return:
+    """
+    names = {}
+    with open(base_directory + '/assembly_data_report.jsonl', 'r') as file:
+        for line in file:
+            record = json.loads(line)
+            names[record['accession']] = record['organism'].get('infraspecificNames', {}).get('strain')
+
+    return names

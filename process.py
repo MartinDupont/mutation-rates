@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from Levenshtein import distance
 
-from common import parse_fasta_file, make_key, translate, loop_over_ncbi_folders
+from common import parse_fasta_file, make_key, translate, loop_over_ncbi_folders, read_assembly_data_report
 
 
 def first_diff(string_a, string_b):
@@ -105,16 +105,22 @@ def count_mutations_maf(sample_counts, unique_sequences, sequence_counts, anomal
 
 
 
-def get_diffs(base_directory, reference_genome, limit =100000):
+def get_diffs(base_directory, reference_genome, name_to_strain, limit =100000):
 
     anomalies = defaultdict(int)
     sample_counts = defaultdict(int)
     unique_sequences = defaultdict(set)
     sequence_counts = defaultdict(int)
     protein_names = dict()
+    strains_encountered_so_far = set()
     for file_path, folder_name in loop_over_ncbi_folders(base_directory, limit):
         with open(file_path, 'r') as file:
             parsed = parse_fasta_file(file, folder_name, include_sequences=True)
+            strain = name_to_strain.get(folder_name)
+            if strain is not None and strain in strains_encountered_so_far:
+                continue
+
+            strains_encountered_so_far.add(strain)
             find_matches(parsed, sample_counts, unique_sequences, sequence_counts, reference_genome, protein_names)
 
 
@@ -150,7 +156,8 @@ if __name__ == '__main__':
     reference_dir = '/Users/martin/Documents/data/reference_genome/ncbi_dataset/data/GCA_000005845.2/cds_from_genomic.fna'
 
     reference_genome = read_and_parse_reference_genome(reference_dir)
-    df = get_diffs(base_directory, reference_genome)
+    name_to_strain = read_assembly_data_report(base_directory)
+    df = get_diffs(base_directory, reference_genome, name_to_strain)
 
     import pickle
     pickle.dump(df, open('df', 'wb'))
