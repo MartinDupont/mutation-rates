@@ -1,3 +1,5 @@
+import argparse
+import numpy as np
 from typing import Optional
 
 import pandas as pd
@@ -19,6 +21,25 @@ def read_fasta_files(base_directory, lim: Optional[int]=100):
 
 
 if __name__ == '__main__':
-    base_directory = '/Users/martin/Documents/data/ncbi_new/ncbi_dataset/ncbi_dataset/data'
-    df = read_fasta_files(base_directory, lim=100)
+    parser = argparse.ArgumentParser(description="Calculate daily zspreads")
+    parser.add_argument(
+        "--dir",
+        "-d",
+        dest="base_directory",
+        help="Where the fasta files are",
+        type=str,
+    )
+    parser.add_argument(
+        "--limit",
+        "-l",
+        dest="limit",
+        help="The file where the reference genome is stored",
+        type=int,
+        default=np.inf
+    )
+
+    args = parser.parse_args()
+    print(args)
+
+    df = read_fasta_files(args.base_directory, lim=args.limit)
     print(df)

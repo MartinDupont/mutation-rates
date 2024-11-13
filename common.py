@@ -6,6 +6,8 @@ from collections import defaultdict
 from typing import List
 import json
 
+THIS_DIRECTORY = os.path.dirname(__file__)
+
 COLUMNS_OF_INTEREST = ['gene', 'locus_tag', 'protein', 'protein_id', 'sequence', 'sample']
 
 ERROR_COLUMNS = [
@@ -179,7 +181,7 @@ def read_assembly_data_report(base_directory):
 
 
 def get_duplicated_samples():
-    file_path = os.path.join(os.path.dirname(__file__), "duplicate_samples.txt")
+    file_path = os.path.join(THIS_DIRECTORY, "duplicate_samples.txt")
     if os.path.isfile(file_path):
         with open(file_path, 'r') as file:
             dupes = file.read().splitlines()

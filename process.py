@@ -2,12 +2,14 @@ import os
 import pdb
 from collections import defaultdict
 import pickle
+import argparse
+import numpy as np
 
 import matplotlib.pyplot as plt
 import pandas as pd
 from Levenshtein import distance
 
-from common import parse_fasta_file, make_key, translate, loop_over_ncbi_folders, read_assembly_data_report, get_duplicated_samples
+from common import parse_fasta_file, make_key, translate, loop_over_ncbi_folders, read_assembly_data_report, get_duplicated_samples, THIS_DIRECTORY
 
 
 def first_diff(string_a, string_b):
@@ -154,14 +156,41 @@ def get_diffs(base_directory, reference_genome, name_to_strain, duplicates, limi
 
 
 if __name__ == '__main__':
-    plt.ioff()
-    base_directory = '/Users/martin/Documents/data/ncbi_new/ncbi_dataset/ncbi_dataset/data'
-    reference_dir = '/Users/martin/Documents/data/reference_genome/ncbi_dataset/data/GCA_000005845.2/cds_from_genomic.fna'
+    parser = argparse.ArgumentParser(description="Calculate daily zspreads")
+    parser.add_argument(
+        "--dir",
+        "-d",
+        dest="base_directory",
+        help="Where the fasta files are",
+        type=str,
+    )
+    parser.add_argument(
+        "--reference",
+        "-r",
+        dest="reference_dir",
+        help="The file where the reference genome is stored",
+        type=str,
+    )
+    parser.add_argument(
+        "--limit",
+        "-l",
+        dest="limit",
+        help="The file where the reference genome is stored",
+        type=int,
+        default=np.inf
+    )
 
-    reference_genome = read_and_parse_reference_genome(reference_dir)
-    name_to_strain = read_assembly_data_report(base_directory)
+    args = parser.parse_args()
+    print(args)
+
+    plt.ioff()
+
+    reference_genome = read_and_parse_reference_genome(args.reference_dir)
+    name_to_strain = read_assembly_data_report(args.base_directory)
     duplicates = get_duplicated_samples()
 
-    df = get_diffs(base_directory, reference_genome, name_to_strain, duplicates)
+    df = get_diffs(args.base_directory, reference_genome, name_to_strain, duplicates, limit=args.limit)
 
-    pickle.dump(df, open('df', 'wb'))
+    outfile = file_path = os.path.join(THIS_DIRECTORY, "df_mutations.pkl")
+    pickle.dump(df, open(outfile, 'wb'))
+

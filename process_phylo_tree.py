@@ -1,3 +1,5 @@
+import pdb
+import os
 import pickle
 from collections import defaultdict
 
@@ -6,8 +8,8 @@ from Bio.Phylo.TreeConstruction import DistanceMatrix, DistanceTreeConstructor
 from Levenshtein import distance
 
 from common import make_key, time_it_cumulative, TIME_STORE, read_assembly_data_report
-from common import parse_fasta_file, translate, loop_over_ncbi_folders
-
+from common import parse_fasta_file, translate, loop_over_ncbi_folders, THIS_DIRECTORY
+import argparse
 
 class IdStore():
     """
@@ -164,15 +166,15 @@ def make_phylogenetic_tree(base_directory, name_to_strain, limit=100000):
             strains_encountered_so_far.add(strain)
             prepare_distance_data(parsed, sample_ids, sequence_store, genes_to_ids)
 
-    pickle.dump(sample_ids, open('sample_ids.pkl', 'wb'))
-    pickle.dump(sequence_store, open('sequences.pkl', 'wb'))
+    pickle.dump(sample_ids, open(os.path.join(THIS_DIRECTORY, "sample_ids.pkl"), 'wb'))
+    pickle.dump(sequence_store, open(os.path.join(THIS_DIRECTORY, "sequences.pkl"), 'wb'))
 
     print("Finished reading files")
     dist_matrix = calculate_distance_matrix(sample_ids, sequence_store, genes_to_ids)
     print(f"Finished constructing distance matrix")
 
-    pickle.dump(dist_matrix, open('dist_matrix.pkl', 'wb'))
-    pickle.dump(list(sample_ids.keys()), open('names.pkl', 'wb'))
+    pickle.dump(dist_matrix, open(os.path.join(THIS_DIRECTORY, "dist_matrix.pkl"), 'wb'))
+    pickle.dump(list(sample_ids.keys()), open(os.path.join(THIS_DIRECTORY, "names.pkl"), 'wb'))
 
     lt = extract_lower_triangular(dist_matrix)
     names = list(sample_ids.keys())
@@ -181,7 +183,7 @@ def make_phylogenetic_tree(base_directory, name_to_strain, limit=100000):
 
     constructor = DistanceTreeConstructor()
     upgma_tree = constructor.upgma(dist_matrix)
-    pickle.dump(upgma_tree, open('upgma_tree.pkl', 'wb'))
+    pickle.dump(upgma_tree, open(os.path.join(THIS_DIRECTORY, "upgma_tree.pkl"), 'wb'))
 
     # NJTree = constructor.nj(distMatrix)
 
@@ -189,12 +191,29 @@ def make_phylogenetic_tree(base_directory, name_to_strain, limit=100000):
 
 
 if __name__ == '__main__':
-    base_directory = '/Users/martin/Documents/data/ncbi_new/ncbi_dataset/ncbi_dataset/data'
-    name_to_strain = read_assembly_data_report(base_directory)
+    parser = argparse.ArgumentParser(description="Calculate daily zspreads")
+    parser.add_argument(
+        "--dir",
+        "-d",
+        dest="base_directory",
+        help="Where the fasta files are",
+        type=str,
+    )
+    parser.add_argument(
+        "--limit",
+        "-l",
+        dest="limit",
+        help="The file where the reference genome is stored",
+        type=int,
+        default=np.inf
+    )
 
-    limit = 1000000
-    TIME_STORE.clear()
-    dm = make_phylogenetic_tree(base_directory, name_to_strain, limit=limit)
-    print(f"Limit: {limit}")
+    args = parser.parse_args()
+    print(args)
+
+    name_to_strain = read_assembly_data_report(args.base_directory)
+
+    dm = make_phylogenetic_tree(args.base_directory, name_to_strain, limit=args.limit)
+    print(f"Limit: {args.limit}")
     for key, value in TIME_STORE.items():
         print(f"\t Time for {key}: {value}")

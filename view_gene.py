@@ -1,6 +1,6 @@
 import os
 from collections import defaultdict
-
+import argparse
 import matplotlib.pyplot as plt
 from Levenshtein import distance
 
@@ -65,12 +65,30 @@ def view_gene(base_directory, target_key, limit=100000):
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="Calculate daily zspreads")
+    parser.add_argument(
+        "--dir",
+        "-d",
+        dest="base_directory",
+        help="Where the fasta files are",
+        type=str,
+    )
+    parser.add_argument(
+        "--gene",
+        "-g",
+        dest="key",
+        help="The ID of the gene",
+        type=str,
+    )
+
+    args = parser.parse_args()
+    print(args)
+
     plt.ioff()
-    base_directory = '/Users/martin/Documents/data/ncbi_new/ncbi_dataset/ncbi_dataset/data'
 
     key = 'rhsC:rhs element protein RhsC'
     key = 'dgoK:2-dehydro-3-deoxygalactonokinase'
     key = 'hofN:DNA utilization protein HofN'
     key = 'nanK:N-acetylmannosamine kinase'
 
-    view_gene(base_directory, key)
+    view_gene(args.base_directory, args.key)

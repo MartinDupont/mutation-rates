@@ -1,8 +1,10 @@
-import pdb
+import os
 from scipy.stats import poisson
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+import pickle
+from common import THIS_DIRECTORY
 
 
 def calculate_mutation_rates(df, anomaly_threshold=0, h_null_mutation_rate=None):
@@ -96,9 +98,9 @@ def make_summary_plots(df, df_matched):
 
 
 if __name__ == '__main__':
-    import pickle
 
-    df = pickle.load(open('df', 'rb'))
+    outfile = file_path = os.path.join(THIS_DIRECTORY, "df_mutations.pkl")
+    df = pickle.load(open(outfile, 'rb'))
 
     # For the given data, this results in about 5% of pvals being less than 5%./
     low_mutation_rate = 0.00005

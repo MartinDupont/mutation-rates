@@ -5,6 +5,7 @@ from Bio import Phylo
 from ete3 import Tree
 import os
 import pickle
+from common import THIS_DIRECTORY
 
 
 def find_duplicates(dist_matrix, names, identity_threshold=1):
@@ -36,8 +37,10 @@ def find_duplicates(dist_matrix, names, identity_threshold=1):
 
 if __name__ == '__main__':
 
-    dist_matrix = pickle.load(open('dist_matrix_final_2.pkl', 'rb'))
-    names = pickle.load(open('names.pkl', 'rb'))
+    file_path = os.path.join(THIS_DIRECTORY, "dist_matrix_final_2.pkl")
+    dist_matrix = pickle.load(open(file_path, 'rb'))
+    file_path = os.path.join(THIS_DIRECTORY, "names.pkl")
+    names = pickle.load(open(file_path, 'rb'))
 
     dist_matrix = dist_matrix + dist_matrix.transpose()
 
