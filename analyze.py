@@ -22,7 +22,7 @@ def calculate_mutation_rates(df, anomaly_threshold=0, h_null_mutation_rate=None)
 
     df['p_value'] = df.apply(lambda x: poisson.cdf(x['n_mutations'], x['total_len'] * h_null_mutation_rate), axis=1)
 
-    df['neg_log_p'] = - np.log10(df['p_value'])
+    df['predicted_essential'] = df['p_value'].apply(lambda x: x < 0.05)
 
     df['unique_ratio'] = df['n_sequences'] / df['sample_count']
 
@@ -32,16 +32,36 @@ def calculate_mutation_rates(df, anomaly_threshold=0, h_null_mutation_rate=None)
 def join_on_essential(df):
     df_essential = pd.read_csv('essential_genes.csv', sep='\t')[['Gene Name', 'Product']]
 
-    df_matched = df.merge(df_essential, left_on=['identifier'], right_on=['Gene Name'], how='inner')
+    df_matched = df.merge(df_essential, left_on=['identifier'], right_on=['Gene Name'], how='left')
+
+    df_matched['essential'] = ~df_matched['Product'].isnull()
 
     return df_matched
+
+def confusion_matrix(df_matched):
+    tp = sum(df_matched['predicted_essential'] & df_matched['essential'])
+    fp = sum(df_matched['predicted_essential'] & (~df_matched['essential']))
+    fn = sum((~df_matched['predicted_essential']) & df_matched['essential'])
+    tn = sum((~df_matched['predicted_essential']) & (~df_matched['essential']))
+
+    matrix = np.array([[tp, fp], [fn, tn]])
+
+    confusion = pd.DataFrame(matrix, columns = ['essential', 'non-essential'], index=['predicted_essential', 'predicted_non-essential'])
+    print(confusion)
+
+    print()
+    confusion['essential'] = confusion['essential'] / confusion['essential'].sum()
+    confusion['non-essential'] = confusion['non-essential'] / confusion['non-essential'].sum()
+
+    print(confusion)
+
 
 
 def make_summary_plots(df, df_matched):
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 5))
 
-    data = df['p_value'].apply(lambda x: 0 if x < 0.05 else 1)
+    data = df['predicted_essential'].apply(lambda x: 0 if x else 1)
     counts = data.value_counts().sort_index()
 
     ax1.bar(counts.index, counts.values, color=['b', 'r'], alpha=0.5)
@@ -52,7 +72,7 @@ def make_summary_plots(df, df_matched):
     ax1.set_ylabel('count')
     ax1.set_title("p-values all genes")
 
-    data = df_matched['p_value'].apply(lambda x: 0 if x < 0.05 else 1)
+    data = df_matched['predicted_essential'].apply(lambda x: 0 if x else 1)
     counts = data.value_counts().sort_index()
     ax2.bar(counts.index, counts.values, color=['b', 'r'], alpha=0.5)
     ax2.set_xticks([0, 1])
@@ -86,5 +106,7 @@ if __name__ == '__main__':
     df = calculate_mutation_rates(df, h_null_mutation_rate=low_mutation_rate)
 
     df_matched = join_on_essential(df)
+    confusion_matrix(df_matched)
 
-    make_summary_plots(df, df_matched)
+    df_essential = df_matched[df_matched['essential']]
+    make_summary_plots(df, df_essential)
