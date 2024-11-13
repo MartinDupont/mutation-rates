@@ -176,3 +176,13 @@ def read_assembly_data_report(base_directory):
             names[record['accession']] = record['organism'].get('infraspecificNames', {}).get('strain')
 
     return names
+
+
+def get_duplicated_samples():
+    file_path = os.path.join(os.path.dirname(__file__), "duplicate_samples.txt")
+    if os.path.isfile(file_path):
+        with open(file_path, 'r') as file:
+            dupes = file.read().splitlines()
+            return dupes
+
+    raise RuntimeError("Duplicate_samples file not found")

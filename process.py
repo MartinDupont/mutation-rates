@@ -1,12 +1,13 @@
 import os
 import pdb
 from collections import defaultdict
+import pickle
 
 import matplotlib.pyplot as plt
 import pandas as pd
 from Levenshtein import distance
 
-from common import parse_fasta_file, make_key, translate, loop_over_ncbi_folders, read_assembly_data_report
+from common import parse_fasta_file, make_key, translate, loop_over_ncbi_folders, read_assembly_data_report, get_duplicated_samples
 
 
 def first_diff(string_a, string_b):
@@ -105,7 +106,7 @@ def count_mutations_maf(sample_counts, unique_sequences, sequence_counts, anomal
 
 
 
-def get_diffs(base_directory, reference_genome, name_to_strain, limit =100000):
+def get_diffs(base_directory, reference_genome, name_to_strain, duplicates, limit =100000):
 
     anomalies = defaultdict(int)
     sample_counts = defaultdict(int)
@@ -118,6 +119,8 @@ def get_diffs(base_directory, reference_genome, name_to_strain, limit =100000):
             parsed = parse_fasta_file(file, folder_name, include_sequences=True)
             strain = name_to_strain.get(folder_name)
             if strain is not None and strain in strains_encountered_so_far:
+                continue
+            if folder_name in duplicates:
                 continue
 
             strains_encountered_so_far.add(strain)
@@ -157,7 +160,8 @@ if __name__ == '__main__':
 
     reference_genome = read_and_parse_reference_genome(reference_dir)
     name_to_strain = read_assembly_data_report(base_directory)
-    df = get_diffs(base_directory, reference_genome, name_to_strain)
+    duplicates = get_duplicated_samples()
 
-    import pickle
+    df = get_diffs(base_directory, reference_genome, name_to_strain, duplicates)
+
     pickle.dump(df, open('df', 'wb'))
