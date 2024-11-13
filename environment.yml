@@ -1,0 +1,14 @@
+name: genomics
+channels:
+  - defaults
+dependencies:
+  - python=3.10
+  - ncbi-datasets-cli
+  - pandas
+  - levenshtein
+  - scipy
+  - matplotlib
+  - biopython
+  - pytest
+  - ete3
+prefix: /opt/anaconda3/envs/genomics
