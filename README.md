@@ -1,4 +1,4 @@
-# Bacterial Mutation Rates Project
+# Inferring essential genes using only genomic data
 This repository is my first genomics project, created as a portfolio piece and a learning exercise in the field.
 
 I decided to pursue an original research question, not only because it is more interesting for me, but also because
