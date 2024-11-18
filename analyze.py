@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import pickle
 from common import THIS_DIRECTORY
+from sklearn import metrics
 
 
 def calculate_mutation_rates(df, anomaly_threshold=0, h_null_mutation_rate=None):
@@ -97,18 +98,41 @@ def make_summary_plots(df, df_matched):
     plt.close()
 
 
+def make_precision_recall_curve(df, n_sample_threshold=20):
+    df  = df[df['sample_count'] > n_sample_threshold]
+
+    y_true = df['essential']
+    scores = - df['mutation_rate']
+
+    precision, recall, thresholds = metrics.precision_recall_curve(y_true, scores)
+
+    plt.plot(recall, precision, label='model')
+
+    no_skill = len(y_true[y_true]) / len(y_true)
+    plt.plot([0, 1], [no_skill, no_skill], linestyle='--', label='No Skill')
+
+    plt.ylabel("Precision")
+    plt.xlabel("Recall")
+
+    plt.legend()
+    plt.show()
+
+
 if __name__ == '__main__':
 
     outfile = file_path = os.path.join(THIS_DIRECTORY, "df_mutations.pkl")
     df = pickle.load(open(outfile, 'rb'))
 
-    # For the given data, this results in about 5% of pvals being less than 5%./
-    low_mutation_rate = 0.00005
-
-    df = calculate_mutation_rates(df, h_null_mutation_rate=low_mutation_rate)
-
     df_matched = join_on_essential(df)
+
+    # For the given data, this results in about 5% of pvals being less than 5%./
+    threshold_mutation_rate = 0.00005
+
+    df_matched = calculate_mutation_rates(df_matched, h_null_mutation_rate=threshold_mutation_rate)
+
     confusion_matrix(df_matched)
 
     df_essential = df_matched[df_matched['essential']]
-    make_summary_plots(df, df_essential)
+    make_precision_recall_curve(df_matched)
+
+    make_summary_plots(df_matched, df_essential)
